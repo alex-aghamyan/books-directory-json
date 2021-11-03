@@ -17,8 +17,7 @@ export async function getAllBooks(request: Request, response: Response) {
 export async function getBook(request: Request, response: Response) {
   const id = request.params.id;
   const db = await getParsedDB();
-
-  const book = db.filter((book) => book.id === id)[0];
+  const book = db.find((book) => book.id === id);
 
   if (!book) {
     return response.status(404).send('Book does not exist...');
@@ -31,9 +30,18 @@ export async function addBook(request: Request, response: Response) {
   const id = Date.now().toString();
   const db = await getParsedDB();
 
+  const { title, author, pages, description } = request.body;
+
+  if (!title || !author || !pages || !description) {
+    return response.status(400).send('Required fields were not provided!');
+  }
+
   const newBook: Book = {
     id: id,
-    ...request.body,
+    title: title,
+    author: author,
+    pages: pages,
+    description: description,
   };
 
   const newDB = [...db, newBook];
@@ -45,22 +53,24 @@ export async function addBook(request: Request, response: Response) {
 export async function updateBook(request: Request, response: Response) {
   const id = request.params.id;
   const db = await getParsedDB();
-  const updatedData: Book = request.body;
 
-  const book = db.find((book) => book.id === id);
+  const bookIndex = db.findIndex((book) => book.id === id);
 
-  if (!book) {
+  if (bookIndex === -1) {
     return response.status(404).send('Book does not exist...');
   }
 
-  const indexOfBook = db.findIndex((book) => book.id === id);
+  const book = db[bookIndex];
 
-  const updatedBook: Book = {
-    ...book,
-    ...updatedData,
-  };
+  const updatedBook = (({
+    id = book.id,
+    title = book.title,
+    author = book.author,
+    pages = book.pages,
+    description = book.description,
+  }: Book): Book => ({ id, title, author, pages, description }))(request.body);
 
-  db[indexOfBook] = updatedBook;
+  db[bookIndex] = updatedBook;
 
   await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2));
   response.status(200).json(updatedBook);
@@ -70,13 +80,13 @@ export async function deleteBook(request: Request, response: Response) {
   const id = request.params.id;
   const db = await getParsedDB();
 
-  const book = db.find((book) => book.id === id);
+  const bookIndex = db.findIndex((book) => book.id === id);
 
-  if (!book) {
+  if (bookIndex === -1) {
     return response.status(404).send('Book does not exist...');
   }
 
-  const newDB = db.filter((book) => book.id !== id);
+  const newDB = [...db.slice(0, bookIndex), ...db.slice(bookIndex + 1)];
 
   await fs.writeFile(DB_PATH, JSON.stringify(newDB, null, 2));
   response.status(200).json(newDB);
